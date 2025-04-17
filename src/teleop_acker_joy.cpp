@@ -67,6 +67,8 @@ struct TeleopAckerJoy::Impl
   rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joy_sub;
   rclcpp::Publisher<ackermann_msgs::msg::AckermannDriveStamped>::SharedPtr cmd_vel_pub;
   std::map<std::string, rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr> cmd_lights_pub;
+  
+  std::string ack_topic;
 
   bool require_enable_button;
   int64_t enable_button;
@@ -94,10 +96,13 @@ TeleopAckerJoy::TeleopAckerJoy(const rclcpp::NodeOptions& options) : Node("teleo
 
   const std::string topic_prefix = "cmd/"; // TODO: make parameter?
 
+  pimpl_->ack_topic = this->declare_parameter("ack_topic", "drive");
+  
+
   // publisher
   pimpl_->cmd_vel_pub =
     this->create_publisher<ackermann_msgs::msg::AckermannDriveStamped>(
-      topic_prefix + "vel",
+      pimpl_->ack_topic,
       rclcpp::QoS(rclcpp::KeepLast(1)));
 
   std::map<std::string, int64_t> default_button_map;
@@ -170,6 +175,9 @@ TeleopAckerJoy::TeleopAckerJoy(const rclcpp::NodeOptions& options) : Node("teleo
   ROS_INFO_COND_NAMED(pimpl_->enable_turbo_button >= 0, "TeleopAckerJoy",
     "Turbo on button %" PRId64 ".", pimpl_->enable_turbo_button);
 
+  ROS_INFO_COND_NAMED(true, "TeleopAckerJoy",
+      "Publishing on topic '%s'" PRId64 ".", pimpl_->ack_topic.c_str());
+
   for (const auto& [name, value] : pimpl_->button_map)
   {
     ROS_INFO_COND_NAMED(true || value != -1L, "TeleopAckerJoy",
@@ -216,6 +224,9 @@ TeleopAckerJoy::TeleopAckerJoy(const rclcpp::NodeOptions& options) : Node("teleo
     static std::set<std::string> boolparams = {
       "require_enable_button",
     };
+    static std::set<std::string> stringparams = {
+      "ack_topic",
+    };
     auto result = rcl_interfaces::msg::SetParametersResult();
     result.successful = true;
 
@@ -247,6 +258,14 @@ TeleopAckerJoy::TeleopAckerJoy(const rclcpp::NodeOptions& options) : Node("teleo
         if (parameter.get_type() != rclcpp::ParameterType::PARAMETER_BOOL)
         {
           result.reason = "Only boolean values can be set for '" + parameter.get_name() + "'.";
+          result.successful = false;
+          RCLCPP_WARN(this->get_logger(), result.reason.c_str());
+          return result;
+        }
+      }
+      else if (stringparams.count(parameter.get_name()) == 1) {
+        if (parameter.get_type() != rclcpp::ParameterType::PARAMETER_STRING) {
+          result.reason = "Only string values can be set for '" + parameter.get_name() + "'.";
           result.successful = false;
           RCLCPP_WARN(this->get_logger(), result.reason.c_str());
           return result;
@@ -302,9 +321,8 @@ TeleopAckerJoy::TeleopAckerJoy(const rclcpp::NodeOptions& options) : Node("teleo
         const auto which = name.substr(std::string("offset.").length());
         this->pimpl_->offset_map[which] = parameter.get_value<rclcpp::PARAMETER_DOUBLE>();
       }
-      else
-      {
-        RCLCPP_WARN(this->get_logger(), "Parameter '%s' is not required and thus is ignored", name);
+      else if (name == "ack_topic") {
+        this->pimpl_->ack_topic = parameter.get_value<rclcpp::PARAMETER_STRING>();
       }
     }
     return result;
@@ -354,6 +372,8 @@ void TeleopAckerJoy::Impl::sendCmdVelMsg(const sensor_msgs::msg::Joy::SharedPtr 
   // Initializes with zeros by default.
   auto cmd_vel_msg = std::make_unique<ackermann_msgs::msg::AckermannDriveStamped>();
 
+  cmd_vel_msg->header.stamp = clock.now();
+  cmd_vel_msg->header.frame_id = "stamped_drive";
   cmd_vel_msg->drive.speed = offset_map["linear"] +
     getValScaled(joy_msg, axis_map, scale_map[which_map], "linear");
   cmd_vel_msg->drive.steering_angle = offset_map["steering_angle"] +

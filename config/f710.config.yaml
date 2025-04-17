@@ -1,0 +1,43 @@
+teleop_acker_joy_node:
+  ros__parameters:
+    axis.linear: 4
+    scale.linear: .45
+    scale_turbo.linear: 0.7
+
+    # this is for steering angle velocity.
+    # a big number makes it more authorative about getting to setpoint
+    # The scale is "about the angle error in rad" until stop
+    axis.steering_angle_velocity: 1
+    scale.steering_angle_velocity: 0.0
+    offset.steering_angle_velocity: 0.5
+    scale_turbo.steering_angle_velocity: 1.0
+
+    # This is the steering angle in rad (about 0.015 rad in a degree)
+    axis.steering_angle: 0
+    scale.steering_angle: 1.48
+    scale_turbo.steering_angle: 0.7
+
+    # Optional: have a separate "fine" axis
+    # in this case, the coarse axis is considered separate.
+    axis.steering_angle_fine: 3
+    scale.steering_angle_fine: 0.4 # 1.4
+    scale_turbo.steering_angle_fine: 0.1
+
+    enable_button: 5  # L1 shoulder button
+    enable_turbo_button: 6  # R1 shoulder button
+
+    # other buttons:
+    lights:
+      flash: 0
+      headlight: 1
+      turn_left: 2
+      turn_right: 3
+    
+    # what topic to publish on
+    ack_topic: "drive"
+
+    failsafe_delay_ms: 500
+
+joy_node:
+  ros__parameters:
+    coalesce_interval_ms: 2 # default: 1
